@@ -1,0 +1,32 @@
+name: Deploy Backend to Render
+
+on:
+  push:
+    branches: [ main ] 
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        [cite_start]uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    # Aqui precisamos verificr se a mensagem de commit do Merge contém a referência à branch api-*
+    if: |
+      github.ref == 'refs/heads/main' && 
+      contains(github.event.head_commit.message, 'api-')
+    
+    steps:
+      - name: Deploy to Render
+        run: |
+          curl -fX POST "https://api.render.com/deploy/srv-${{ secrets.RENDER_SERVICE_ID }}?key=${{ secrets.RENDER_API_KEY }}" [cite: 11, 20]
