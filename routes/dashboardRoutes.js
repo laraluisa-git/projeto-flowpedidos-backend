@@ -23,24 +23,33 @@ router.get('/', verificarToken, async (req, res) => {
       return acc + (qty * price);
     }, 0);
 
-    // 2. Consulta Pedidos (Apenas status é necessário para as contagens)
-    let queryPed = supabase.from('pedidos').select('status');
+    let queryPed = supabase.from('pedidos').select('status, quantidade, produtos(unit_price)');
     if (!isAdmin) queryPed = queryPed.eq('user_id', userId);
     
     const { data: pedidos, error: errPed } = await queryPed;
     if (errPed) throw errPed;
+
+    const totalVendas = (pedidos || [])
+      .filter(p => p.status === 'entregue' && p.produtos)
+      .reduce((acc, p) => {
+        const qty = Number(p.quantidade) || 0;
+        const price = Number(p.produtos.unit_price) || 0;
+        return acc + (qty * price);
+      }, 0);
 
     const stats = {
       totalPedidos: pedidos.length,
       confirmados: pedidos.filter(p => p.status === 'confirmado').length,
       entregues: pedidos.filter(p => p.status === 'entregue').length,
       valorTotalEstoque: totalEstoqueValor.toFixed(2),
+      totalVendas: totalVendas.toFixed(2),
       
       // Adicionando chaves em inglês (camelCase) para compatibilidade com o frontend
       totalOrders: pedidos.length,
       confirmedOrders: pedidos.filter(p => p.status === 'confirmado').length,
       deliveredOrders: pedidos.filter(p => p.status === 'entregue').length,
-      totalStockValue: totalEstoqueValor.toFixed(2)
+      totalStockValue: totalEstoqueValor.toFixed(2),
+      totalSales: totalVendas.toFixed(2)
     };
 
     res.status(200).json(stats);
