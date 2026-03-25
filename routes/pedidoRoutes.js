@@ -6,7 +6,6 @@ import { verificarToken } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
 
-// TODO: Teste para deploy
 const pedidoSchema = z.object({
   customerName: z.string().min(2),
   deliveryAddress: z.string().min(5),
@@ -18,6 +17,7 @@ const pedidoSchema = z.object({
 
 function mapPedidoInsert(body, userId) {
   const agora = Date.now();
+
   return {
     cliente_nome: body.customerName,
     endereco_entrega: body.deliveryAddress,
@@ -32,12 +32,27 @@ function mapPedidoInsert(body, userId) {
   };
 }
 
+function mapPedidoResponse(p) {
+  return {
+    id: p.id,
+    customerName: p.cliente_nome ?? p.customerName,
+    deliveryAddress: p.endereco_entrega ?? p.deliveryAddress,
+    productId: p.produto_id ?? p.productId,
+    productName: p.produtos?.nome ?? p.produtos?.name ?? null,
+    quantity: p.quantidade ?? p.quantity ?? 0,
+    priority: p.priority,
+    status: p.status,
+    createdAt: p.criadoEm ?? p.createdAt ?? null,
+    updatedAt: p.atualizadoEm ?? p.updatedAt ?? null,
+    deliveredAt: p.entrega_em ?? p.deliveredAt ?? null,
+  };
+}
+
 // GET /api/pedidos
 router.get('/', verificarToken, async (req, res) => {
   try {
     const { id: userId, role } = req.user;
-    
-    // Join com a tabela produtos (usando o nome da coluna que definimos no mapeamento)
+
     let query = supabase
       .from('pedidos')
       .select('*, produtos(nome)');
@@ -50,19 +65,7 @@ router.get('/', verificarToken, async (req, res) => {
 
     if (error) throw error;
 
-    // Mapeia snake_case (banco) para camelCase (frontend)
-    const pedidosFormatados = (pedidos ?? []).map(p => ({
-      id: p.id,
-      customerName: p.cliente_nome ?? p.customerName,
-      deliveryAddress: p.endereco_entrega ?? p.deliveryAddress,
-      productId: p.produto_id ?? p.productId,
-      productName: p.produtos?.nome ?? p.produtos?.name,
-      quantity: p.quantidade ?? p.quantity ?? 0,
-      priority: p.priority,
-      status: p.status,
-      createdAt: p.criadoEm ?? p.createdAt,
-      deliveredAt: p.entrega_em ?? p.deliveredAt ?? null,
-    }));
+    const pedidosFormatados = (pedidos ?? []).map(mapPedidoResponse);
 
     res.status(200).json(pedidosFormatados);
   } catch (error) {
@@ -70,13 +73,12 @@ router.get('/', verificarToken, async (req, res) => {
   }
 });
 
-// POST /api/pedidos - COM BAIXA DE ESTOQUE
+// POST /api/pedidos
 router.post('/', verificarToken, async (req, res) => {
   try {
     const validated = pedidoSchema.parse(req.body);
     const payload = mapPedidoInsert(validated, req.user.id);
 
-    // 1) Busca o produto (atenção aos nomes das colunas unit_price e stock_qty)
     const { data: produto, error: produtoError } = await supabase
       .from('produtos')
       .select('id, stock_qty, unit_price')
@@ -84,130 +86,192 @@ router.post('/', verificarToken, async (req, res) => {
       .maybeSingle();
 
     if (produtoError) throw produtoError;
-    if (!produto) return res.status(404).json({ error: 'Produto não encontrado.' });
+    if (!produto) {
+      return res.status(404).json({ error: 'Produto não encontrado.' });
+    }
 
-    // 2) Verifica estoque
     if (produto.stock_qty < payload.quantidade) {
-      console.warn(`[PEDIDO] Estoque insuficiente. Prod: ${payload.produto_id}, Req: ${payload.quantidade}, Disp: ${produto.stock_qty}`);
-      return res.status(422).json({ 
-        error: `Estoque insuficiente. Disponível: ${produto.stock_qty}` 
+      return res.status(422).json({
+        error: `Estoque insuficiente. Disponível: ${produto.stock_qty}`,
       });
     }
 
-    // 3) Insere o pedido
     const { data: novoPedido, error: pedidoError } = await supabase
       .from('pedidos')
       .insert([payload])
-      .select()
+      .select('*, produtos(nome)')
       .single();
 
     if (pedidoError) throw pedidoError;
 
-    // 4) Atualiza estoque do produto (snake_case)
     const { error: estoqueError } = await supabase
       .from('produtos')
-      .update({ 
-        stock_qty: produto.stock_qty - payload.quantidade, 
-        atualizadoEm: Date.now() 
+      .update({
+        stock_qty: produto.stock_qty - payload.quantidade,
+        atualizadoEm: Date.now(),
       })
       .eq('id', payload.produto_id);
 
     if (estoqueError) throw estoqueError;
 
-    console.log(`[PEDIDO] Criado com sucesso: ${novoPedido.id} | Cliente: ${novoPedido.cliente_nome}`);
-
-    res.status(201).json({ pedido: novoPedido });
+    res.status(201).json({
+      pedido: mapPedidoResponse(novoPedido),
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ errors: error.issues.map(e => e.message) });
+      return res.status(400).json({
+        errors: error.issues.map((e) => e.message),
+      });
     }
+
     res.status(500).json({ error: 'Erro ao processar pedido', details: error.message });
   }
 });
 
-// PUT /api/pedidos/:id - Atualizar pedido (Status ou Quantidade com ajuste de estoque)
+// PUT /api/pedidos/:id
 router.put('/:id', verificarToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { id: userId, role } = req.user;
     const body = req.body;
 
-    // 1. Busca pedido atual
     const { data: pedidoAtual, error: errBusca } = await supabase
       .from('pedidos')
       .select('*')
       .eq('id', id)
       .single();
 
-    if (errBusca || !pedidoAtual) return res.status(404).json({ error: 'Pedido não encontrado' });
+    if (errBusca || !pedidoAtual) {
+      return res.status(404).json({ error: 'Pedido não encontrado' });
+    }
 
-    // Permissão: Admin ou Dono do pedido
     if (role !== 'admin' && pedidoAtual.user_id !== userId) {
       return res.status(403).json({ error: 'Sem permissão.' });
     }
 
-    // 2. Prepara update
-    const updateData = { atualizadoEm: Date.now() };
+    const updateData = {
+      atualizadoEm: Date.now(),
+    };
+
     if (body.customerName) updateData.cliente_nome = body.customerName;
     if (body.deliveryAddress) updateData.endereco_entrega = body.deliveryAddress;
     if (body.priority) updateData.priority = body.priority;
+
     if (body.status) {
       updateData.status = body.status;
+
       if (body.status === 'entregue' && pedidoAtual.status !== 'entregue') {
         updateData.entrega_em = Date.now();
       }
-    }
 
-    // 3. Lógica de Estoque se quantidade mudou
-    if (body.quantity && body.quantity !== pedidoAtual.quantidade) {
-      const diff = body.quantity - pedidoAtual.quantidade; // Positivo = consumiu mais, Negativo = devolveu
-      
-      const { data: produto } = await supabase.from('produtos').select('stock_qty').eq('id', pedidoAtual.produto_id).single();
-      
-      if (produto) {
-        if (produto.stock_qty < diff) return res.status(422).json({ error: 'Estoque insuficiente para a nova quantidade.' });
-        await supabase.from('produtos').update({ stock_qty: produto.stock_qty - diff }).eq('id', pedidoAtual.produto_id);
+      if (body.status !== 'entregue') {
+        updateData.entrega_em = null;
       }
-      updateData.quantidade = body.quantity;
     }
 
-    const { data: atualizado, error: errUpdate } = await supabase.from('pedidos').update(updateData).eq('id', id).select().single();
-    if (errUpdate) throw errUpdate;
-    
-    console.log(`[PEDIDO] Atualizado: ${id} | Status: ${updateData.status || 'mantido'} | Qtd: ${updateData.quantidade || 'mantida'}`);
+    if (
+      body.quantity !== undefined &&
+      Number(body.quantity) !== Number(pedidoAtual.quantidade)
+    ) {
+      const novaQuantidade = Number(body.quantity);
+      const quantidadeAtual = Number(pedidoAtual.quantidade);
+      const diff = novaQuantidade - quantidadeAtual;
 
-    res.json(atualizado);
+      const { data: produto, error: errProduto } = await supabase
+        .from('produtos')
+        .select('stock_qty')
+        .eq('id', pedidoAtual.produto_id)
+        .single();
+
+      if (errProduto) throw errProduto;
+
+      if (!produto) {
+        return res.status(404).json({ error: 'Produto do pedido não encontrado.' });
+      }
+
+      if (diff > 0 && produto.stock_qty < diff) {
+        return res.status(422).json({
+          error: 'Estoque insuficiente para a nova quantidade.',
+        });
+      }
+
+      const { error: estoqueError } = await supabase
+        .from('produtos')
+        .update({
+          stock_qty: produto.stock_qty - diff,
+          atualizadoEm: Date.now(),
+        })
+        .eq('id', pedidoAtual.produto_id);
+
+      if (estoqueError) throw estoqueError;
+
+      updateData.quantidade = novaQuantidade;
+    }
+
+    const { data: atualizado, error: errUpdate } = await supabase
+      .from('pedidos')
+      .update(updateData)
+      .eq('id', id)
+      .select('*, produtos(nome)')
+      .single();
+
+    if (errUpdate) throw errUpdate;
+
+    res.json(mapPedidoResponse(atualizado));
   } catch (error) {
     res.status(500).json({ error: 'Erro ao atualizar pedido', details: error.message });
   }
 });
 
-// DELETE /api/pedidos/:id - Excluir pedido e estornar estoque
+// DELETE /api/pedidos/:id
 router.delete('/:id', verificarToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { role, id: userId } = req.user;
 
-    // 1. Busca o pedido para estornar estoque
-    const { data: pedido, error: errBusca } = await supabase.from('pedidos').select('*').eq('id', id).single();
+    const { data: pedido, error: errBusca } = await supabase
+      .from('pedidos')
+      .select('*')
+      .eq('id', id)
+      .single();
+
     if (errBusca) throw errBusca;
-    if (!pedido) return res.status(404).json({ error: 'Pedido não encontrado.' });
+    if (!pedido) {
+      return res.status(404).json({ error: 'Pedido não encontrado.' });
+    }
 
-    if (role !== 'admin' && pedido.user_id !== userId) return res.status(403).json({ error: 'Sem permissão para excluir.' });
+    if (role !== 'admin' && pedido.user_id !== userId) {
+      return res.status(403).json({ error: 'Sem permissão para excluir.' });
+    }
 
-    // 2. Estorna estoque
     if (pedido.produto_id && pedido.quantidade) {
-      const { data: produto } = await supabase.from('produtos').select('stock_qty').eq('id', pedido.produto_id).single();
+      const { data: produto, error: errProduto } = await supabase
+        .from('produtos')
+        .select('stock_qty')
+        .eq('id', pedido.produto_id)
+        .single();
+
+      if (errProduto) throw errProduto;
+
       if (produto) {
-        await supabase.from('produtos').update({ stock_qty: produto.stock_qty + pedido.quantidade }).eq('id', pedido.produto_id);
+        const { error: estoqueError } = await supabase
+          .from('produtos')
+          .update({
+            stock_qty: produto.stock_qty + pedido.quantidade,
+            atualizadoEm: Date.now(),
+          })
+          .eq('id', pedido.produto_id);
+
+        if (estoqueError) throw estoqueError;
       }
     }
 
-    // 3. Remove pedido
-    const { error: errDel } = await supabase.from('pedidos').delete().eq('id', id);
-    if (errDel) throw errDel;
+    const { error: errDel } = await supabase
+      .from('pedidos')
+      .delete()
+      .eq('id', id);
 
-    console.log(`[PEDIDO] Excluído: ${id} | Estoque estornado: ${pedido.quantidade}`);
+    if (errDel) throw errDel;
 
     res.status(200).json({ message: 'Pedido excluído com sucesso.' });
   } catch (error) {
