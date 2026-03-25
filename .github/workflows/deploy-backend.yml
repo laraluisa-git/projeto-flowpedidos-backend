@@ -21,11 +21,6 @@ jobs:
   deploy:
     needs: build-and-test
     runs-on: ubuntu-latest
-    # Aqui precisamos verificr se a mensagem de commit do Merge contém a referência à branch api-*
-    if: |
-      github.ref == 'refs/heads/main' && 
-      contains(github.event.head_commit.message, 'api-')
-    
     steps:
       - name: Deploy to Render
         run: |
