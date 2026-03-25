@@ -53,16 +53,15 @@ router.get('/', verificarToken, async (req, res) => {
     // Mapeia snake_case (banco) para camelCase (frontend)
     const pedidosFormatados = (pedidos ?? []).map(p => ({
       id: p.id,
-      customerName: p.cliente_nome,
-      deliveryAddress: p.endereco_entrega,
-      productId: p.produto_id,
-      productName: p.produtos?.nome,
-      quantity: p.quantidade ?? p.quantity ?? 0, // Fallback de segurança
+      customerName: p.cliente_nome ?? p.customerName,
+      deliveryAddress: p.endereco_entrega ?? p.deliveryAddress,
+      productId: p.produto_id ?? p.productId,
+      productName: p.produtos?.nome ?? p.produtos?.name,
+      quantity: p.quantidade ?? p.quantity ?? 0,
       priority: p.priority,
       status: p.status,
-      criadoEm: p.criadoEm,
-      createdAt: p.criadoEm || p.criadoem,
-      entregaEm: p.entrega_em
+      createdAt: p.criadoEm ?? p.createdAt,
+      deliveredAt: p.entrega_em ?? p.deliveredAt ?? null,
     }));
 
     res.status(200).json(pedidosFormatados);
