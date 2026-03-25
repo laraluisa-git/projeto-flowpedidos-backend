@@ -6,6 +6,7 @@ import { verificarToken } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
 
+// TODO: Teste para deploy
 const pedidoSchema = z.object({
   customerName: z.string().min(2),
   deliveryAddress: z.string().min(5),
