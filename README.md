@@ -4,6 +4,7 @@ API REST do sistema FlowPedidos, responsável por toda a lógica de negócio, au
 
 **Stack:** Node.js · Express · Supabase · JWT · Zod
 
+**ACESSO AO SISTEMA:** https://projeto-flowpedidos.vercel.app/
 ---
 
 ## Sumário
