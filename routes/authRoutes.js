@@ -1,4 +1,12 @@
 // routes/authRoutes.js
+
+/**
+ * @swagger
+ * tags:
+ *   name: Auth
+ *   description: Cadastro e login de usuários
+ */
+
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -54,6 +62,38 @@ function mapRegisterPayload(body) {
   };
 }
 
+/**
+ * @swagger
+ * /api/auth/register:
+ *   post:
+ *     summary: Cadastrar novo usuário
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/RegisterInput'
+ *     responses:
+ *       201:
+ *         description: Usuário criado com sucesso. Retorna token JWT e dados do usuário.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthResponse'
+ *       400:
+ *         description: Email já cadastrado ou dados inválidos.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErroGenerico'
+ *       500:
+ *         description: Erro interno no servidor.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErroGenerico'
+ */
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
@@ -112,6 +152,38 @@ router.post('/register', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     summary: Autenticar usuário
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/LoginInput'
+ *     responses:
+ *       200:
+ *         description: Login realizado com sucesso. Retorna token JWT e dados do usuário.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthResponse'
+ *       401:
+ *         description: Email ou senha inválidos.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErroGenerico'
+ *       500:
+ *         description: Erro interno no servidor.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErroGenerico'
+ */
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
   try {

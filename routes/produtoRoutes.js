@@ -1,3 +1,10 @@
+/**
+ * @swagger
+ * tags:
+ *   name: Produtos
+ *   description: Gerenciamento de produtos e estoque
+ */
+
 import express from 'express';
 import { z } from 'zod';
 import supabase from '../config/supabase.js';
@@ -35,6 +42,37 @@ function mapProduto(body) {
   return obj;
 }
 
+/**
+ * @swagger
+ * /api/produtos:
+ *   get:
+ *     summary: Listar produtos
+ *     description: Retorna todos os produtos. Admin vê todos; usuário comum vê apenas os seus.
+ *     tags: [Produtos]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de produtos retornada com sucesso.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Produto'
+ *       401:
+ *         description: Token ausente ou inválido.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErroGenerico'
+ *       500:
+ *         description: Erro interno no servidor.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErroGenerico'
+ */
 // GET /api/produtos
 router.get('/', verificarToken, async (req, res) => {
   try {
@@ -53,6 +91,46 @@ router.get('/', verificarToken, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/produtos:
+ *   post:
+ *     summary: Cadastrar produto
+ *     tags: [Produtos]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ProdutoInput'
+ *     responses:
+ *       201:
+ *         description: Produto criado com sucesso.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Produto'
+ *       400:
+ *         description: Dados inválidos.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErroValidacao'
+ *       401:
+ *         description: Token ausente ou inválido.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErroGenerico'
+ *       500:
+ *         description: Erro interno no servidor.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErroGenerico'
+ */
 // POST /api/produtos
 router.post('/', verificarToken, async (req, res) => {
   try {
@@ -86,6 +164,59 @@ router.post('/', verificarToken, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/produtos/{id}:
+ *   put:
+ *     summary: Atualizar produto
+ *     tags: [Produtos]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID do produto
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ProdutoInput'
+ *     responses:
+ *       200:
+ *         description: Produto atualizado com sucesso.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Produto'
+ *       400:
+ *         description: Dados inválidos.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErroValidacao'
+ *       401:
+ *         description: Token ausente ou inválido.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErroGenerico'
+ *       404:
+ *         description: Produto não encontrado.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErroGenerico'
+ *       500:
+ *         description: Erro interno no servidor.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErroGenerico'
+ */
 // PUT /api/produtos/:id
 router.put('/:id', verificarToken, async (req, res) => {
   try {
@@ -120,6 +251,47 @@ router.put('/:id', verificarToken, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/produtos/{id}:
+ *   delete:
+ *     summary: Remover produto
+ *     tags: [Produtos]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID do produto
+ *     responses:
+ *       200:
+ *         description: Produto removido com sucesso.
+ *         content:
+ *           application/json:
+ *             example:
+ *               mensagem: Produto removido com sucesso.
+ *       401:
+ *         description: Token ausente ou inválido.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErroGenerico'
+ *       404:
+ *         description: Produto não encontrado ou sem permissão.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErroGenerico'
+ *       500:
+ *         description: Erro interno no servidor.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErroGenerico'
+ */
 // DELETE /api/produtos/:id
 router.delete('/:id', verificarToken, async (req, res) => {
   try {
